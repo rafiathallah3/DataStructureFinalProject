@@ -1,0 +1,730 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Data Structure Visualizer</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Inter:wght@400;600;800&display=swap');
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f8fafc;
+        }
+
+        .mono-font {
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent; 
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #cbd5e1; 
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8; 
+        }
+
+        /* Node Animations */
+        .node-enter {
+            animation: popIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+        }
+
+        @keyframes popIn {
+            0% { transform: translate(-50%, -50%) scale(0); opacity: 0; }
+            100% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+        }
+
+        .arrow-path {
+            stroke-dasharray: 1000;
+            stroke-dashoffset: 1000;
+            animation: drawLine 0.5s ease-out forwards;
+        }
+
+        @keyframes drawLine {
+            to { stroke-dashoffset: 0; }
+        }
+
+        /* Container for absolute positioning of tree/list nodes */
+        #viz-canvas {
+            position: relative;
+            overflow: hidden; 
+            background-image: radial-gradient(#cbd5e1 1px, transparent 1px);
+            background-size: 20px 20px;
+            cursor: crosshair;
+        }
+
+        .draggable-node {
+            cursor: grab;
+            user-select: none;
+            touch-action: none;
+            box-sizing: border-box;
+        }
+        .draggable-node:active {
+            cursor: grabbing;
+            border-color: #4f46e5; /* Indigo-600 */
+            box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.3);
+        }
+
+        /* Specific Node Styles */
+        .node-circle {
+            width: 48px;
+            height: 48px;
+            border-radius: 9999px;
+        }
+        
+        .node-rect {
+            border-radius: 6px;
+            min-height: 40px;
+        }
+    </style>
+</head>
+<body class="h-screen flex flex-col text-slate-800 overflow-hidden">
+
+    <!-- Header -->
+    <header class="bg-white border-b border-slate-200 p-4 shadow-sm z-30 relative">
+        <div class="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 bg-indigo-600 rounded-lg flex items-center justify-center text-white font-bold text-xl shadow-lg shadow-indigo-200">
+                    DS
+                </div>
+                <h1 class="text-xl font-bold tracking-tight text-slate-900">Visualizer <span class="text-xs font-normal text-slate-400 ml-2">(C++ Backend)</span></h1>
+            </div>
+
+            <!-- DS Selector -->
+            <div class="flex bg-slate-100 p-1 rounded-lg overflow-x-auto max-w-full no-scrollbar">
+                <button onclick="switchDS('stack')" id="btn-stack" class="ds-btn px-4 py-2 rounded-md text-sm font-medium transition-colors text-slate-600 hover:text-indigo-600">Stack</button>
+                <button onclick="switchDS('queue')" id="btn-queue" class="ds-btn px-4 py-2 rounded-md text-sm font-medium transition-colors text-slate-600 hover:text-indigo-600">Queue</button>
+                <button onclick="switchDS('linkedlist')" id="btn-linkedlist" class="ds-btn px-4 py-2 rounded-md text-sm font-medium transition-colors text-slate-600 hover:text-indigo-600">Linked List</button>
+                <button onclick="switchDS('doublylinkedlist')" id="btn-doublylinkedlist" class="ds-btn px-4 py-2 rounded-md text-sm font-medium transition-colors text-slate-600 hover:text-indigo-600">Double LL</button>
+                <button onclick="switchDS('multilinkedlist')" id="btn-multilinkedlist" class="ds-btn px-4 py-2 rounded-md text-sm font-medium transition-colors text-slate-600 hover:text-indigo-600">Multi Linked List</button>
+                <button onclick="switchDS('bst')" id="btn-bst" class="ds-btn px-4 py-2 rounded-md text-sm font-medium transition-colors text-slate-600 hover:text-indigo-600">BST</button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="flex-1 flex flex-col relative">
+        
+        <!-- Info Bar -->
+        <div class="bg-white/80 backdrop-blur-sm border-b border-slate-200 px-6 py-3 flex justify-between items-center text-sm text-slate-500 z-20">
+            <span id="ds-description">LIFO: Last In, First Out</span>
+            <div class="flex gap-2">
+                <span class="text-xs font-semibold bg-slate-100 px-2 py-1 rounded text-slate-600">💡 Drag nodes to move them!</span>
+            </div>
+        </div>
+
+        <!-- Visualization Area -->
+        <div id="viz-container" class="flex-1 relative bg-slate-50 overflow-hidden">
+            <!-- SVG Layer for Lines -->
+            <svg id="svg-layer" class="absolute inset-0 w-full h-full pointer-events-none z-0">
+                <defs>
+                    <marker id="arrowhead" markerWidth="14" markerHeight="14" refX="13" refY="7" orient="auto">
+                        <polygon points="0 0, 14 7, 0 14" fill="#94a3b8" />
+                    </marker>
+                    <marker id="arrowhead-start" markerWidth="14" markerHeight="14" refX="13" refY="7" orient="auto-start-reverse">
+                        <polygon points="0 0, 14 7, 0 14" fill="#94a3b8" />
+                    </marker>
+                    <!-- Backwards arrow for Doubly LL -->
+                    <marker id="arrowhead-prev" markerWidth="14" markerHeight="14" refX="13" refY="7" orient="auto">
+                        <polygon points="0 0, 14 7, 0 14" fill="#f59e0b" /> <!-- Amber-500 -->
+                    </marker>
+                    <marker id="arrowhead-skip" markerWidth="14" markerHeight="14" refX="13" refY="7" orient="auto">
+                        <polygon points="0 0, 14 7, 0 14" fill="#64748b" />
+                    </marker>
+                </defs>
+            </svg>
+            
+            <!-- DOM Layer for Nodes -->
+            <div id="viz-canvas" class="w-full h-full z-10">
+                <!-- Nodes generated by JS go here -->
+            </div>
+        </div>
+
+        <!-- Controls -->
+        <div class="bg-white border-t border-slate-200 p-6 z-30 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
+            <div class="max-w-3xl mx-auto flex flex-col sm:flex-row gap-4 items-center justify-center">
+                <div class="relative w-full sm:w-48">
+                    <input type="number" id="data-input" placeholder="Value (0-99)" 
+                        class="w-full pl-4 pr-4 py-2 border-2 border-slate-200 rounded-lg focus:outline-none focus:border-indigo-500 font-mono text-center transition-colors"
+                        onkeydown="if(event.key === 'Enter') handleAdd()">
+                </div>
+                
+                <div class="flex gap-2 w-full sm:w-auto">
+                    <button onclick="handleAdd()" class="flex-1 sm:flex-none bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2 rounded-lg font-semibold shadow-lg shadow-indigo-200 transition-all active:scale-95 flex items-center justify-center gap-2">
+                        Add
+                    </button>
+                    
+                    <button onclick="handleRemove()" class="flex-1 sm:flex-none bg-white border-2 border-slate-200 hover:border-red-400 hover:text-red-500 text-slate-600 px-6 py-2 rounded-lg font-semibold transition-all active:scale-95 flex items-center justify-center gap-2">
+                        Remove
+                    </button>
+                    
+                    <button onclick="handleRemoveValue()" class="flex-1 sm:flex-none bg-white border-2 border-slate-200 hover:border-orange-400 hover:text-orange-500 text-slate-600 px-6 py-2 rounded-lg font-semibold transition-all active:scale-95 flex items-center justify-center gap-2">
+                        Remove Value
+                    </button>
+                </div>
+
+                <div class="h-8 w-px bg-slate-200 hidden sm:block"></div>
+
+                <button onclick="handleClear()" class="text-slate-400 hover:text-slate-600 text-sm font-medium transition-colors">
+                    Reset
+                </button>
+                <button onclick="handleRandom()" class="text-indigo-400 hover:text-indigo-600 text-sm font-medium transition-colors">
+                    Random Fill
+                </button>
+            </div>
+            <p id="error-msg" class="text-center text-red-500 text-sm mt-2 h-5 font-medium opacity-0 transition-opacity"></p>
+        </div>
+    </main>
+
+    <script>
+        const API_URL = 'http://localhost:18080/api';
+
+        const state = {
+            currentDS: 'stack',
+            nodePositions: {}, 
+            descriptions: {
+                stack: "Stack (LIFO): Elements are added and removed from the top.",
+                queue: "Queue (FIFO): Elements are added to the back and removed from the front.",
+                linkedlist: "Linked List: A linear collection of nodes where each node points to the next.",
+                doublylinkedlist: "Doubly Linked List: Nodes have pointers to both next and previous nodes.",
+                multilinkedlist: "Multi Linked List (Skip List): A multi-level sorted list structure for fast search.",
+                bst: "Binary Search Tree: A hierarchical structure."
+            }
+        };
+
+        const canvas = document.getElementById('viz-canvas');
+        const svgLayer = document.getElementById('svg-layer');
+        const errorMsg = document.getElementById('error-msg');
+        const inputField = document.getElementById('data-input');
+
+        let dragState = { active: false, nodeId: null, el: null, offsetX: 0, offsetY: 0 };
+
+        // Initialize
+        switchDS('stack');
+
+        document.addEventListener('mousemove', handleGlobalMouseMove);
+        document.addEventListener('mouseup', handleGlobalMouseUp);
+
+        function switchDS(type) {
+            state.currentDS = type;
+            state.nodePositions = {}; 
+            
+            document.querySelectorAll('.ds-btn').forEach(btn => {
+                btn.classList.remove('bg-white', 'text-indigo-600', 'shadow-sm', 'ring-1', 'ring-slate-200');
+                btn.classList.add('text-slate-600');
+            });
+            const activeBtn = document.getElementById(`btn-${type}`);
+            if(activeBtn) {
+                activeBtn.classList.add('bg-white', 'text-indigo-600', 'shadow-sm', 'ring-1', 'ring-slate-200');
+                activeBtn.classList.remove('text-slate-600');
+            }
+            
+            document.getElementById('ds-description').innerText = state.descriptions[type];
+            
+            if(type === 'bst' || type === 'multilinkedlist') {
+                inputField.placeholder = "Value (Sorted)";
+            } else {
+                inputField.placeholder = "Value (0-99)";
+            }
+
+            fetchData();
+        }
+
+        async function fetchData() {
+            try {
+                const response = await fetch(`${API_URL}/${state.currentDS}/data`);
+                if(response.ok) {
+                    const data = await response.json();
+                    render(data);
+                }
+            } catch (e) {
+                console.error("Backend error", e);
+                showError("Could not connect to C++ Backend");
+            }
+        }
+
+        async function handleAdd() {
+            const val = parseInt(inputField.value);
+            const payload = { value: isNaN(val) ? Math.floor(Math.random() * 100) : val };
+            
+            try {
+                await fetch(`${API_URL}/${state.currentDS}/add`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(payload)
+                });
+                inputField.value = '';
+                inputField.focus();
+                fetchData();
+            } catch(e) { showError("Error adding data"); }
+        }
+
+        async function handleRemove() {
+            // Standard remove (Pop/Dequeue/Tail) does not send value
+            try {
+                await fetch(`${API_URL}/${state.currentDS}/remove`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({}) // Empty body for standard remove
+                });
+                fetchData();
+            } catch(e) { showError("Error removing data"); }
+        }
+
+        async function handleRemoveValue() {
+            const val = parseInt(inputField.value);
+            if(isNaN(val)) {
+                // Do nothing if no value input (as requested)
+                return;
+            }
+            
+            try {
+                await fetch(`${API_URL}/${state.currentDS}/remove`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ value: val })
+                });
+                fetchData();
+            } catch(e) { showError("Error removing value"); }
+        }
+
+        async function handleClear() {
+            try {
+                await fetch(`${API_URL}/${state.currentDS}/clear`, { method: 'POST' });
+                state.nodePositions = {};
+                fetchData();
+            } catch(e) { showError("Error clearing data"); }
+        }
+
+        async function handleRandom() {
+            await handleClear();
+            for(let i=0; i<6; i++) {
+                await fetch(`${API_URL}/${state.currentDS}/add`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({value: Math.floor(Math.random() * 100)})
+                });
+            }
+            fetchData();
+        }
+
+        function showError(msg) {
+            errorMsg.innerText = msg;
+            errorMsg.classList.remove('opacity-0');
+            setTimeout(() => { errorMsg.classList.add('opacity-0'); }, 2000);
+        }
+
+        // --- DRAG HANDLERS ---
+        function handleNodeMouseDown(e, nodeId) {
+            e.preventDefault(); 
+            const el = e.target.closest('.draggable-node');
+            if(!el) return;
+            const rect = el.getBoundingClientRect();
+            
+            dragState = {
+                active: true,
+                nodeId: nodeId,
+                el: el,
+                offsetX: e.clientX - rect.left - (rect.width / 2),
+                offsetY: e.clientY - rect.top - (rect.height / 2)
+            };
+        }
+
+        function handleGlobalMouseMove(e) {
+            if (!dragState.active) return;
+            const containerRect = canvas.getBoundingClientRect();
+            let x = e.clientX - containerRect.left - dragState.offsetX;
+            let y = e.clientY - containerRect.top - dragState.offsetY;
+            dragState.el.style.left = `${x}px`;
+            dragState.el.style.top = `${y}px`;
+
+            if(state.nodePositions[dragState.nodeId]) {
+                 state.nodePositions[dragState.nodeId].x = x;
+                 state.nodePositions[dragState.nodeId].y = y;
+            } else {
+                 state.nodePositions[dragState.nodeId] = { x, y };
+            }
+            updateArrows(dragState.nodeId, x, y);
+        }
+
+        function handleGlobalMouseUp() {
+            dragState.active = false;
+            dragState.el = null;
+        }
+
+        function updateArrows(nodeId, x, y) {
+            // Update outgoing
+            const linesFrom = document.querySelectorAll(`[data-from="${nodeId}"]`);
+            linesFrom.forEach(line => {
+                const toId = line.getAttribute('data-to');
+                const toPos = state.nodePositions[toId];
+                if(toPos) {
+                    const fromType = state.currentDS;
+                    const isCurve = line.getAttribute('data-type') === 'curve';
+                    const level = parseInt(line.getAttribute('data-level') || '0');
+                    const param = line.getAttribute('data-param');
+                    
+                    const fromPos = state.nodePositions[nodeId];
+
+                    if (isCurve) {
+                         const { x1, y1, x2, y2 } = getEdgePoints(fromPos, toPos, fromType, param || level);
+                         const cx = (x1 + x2) / 2;
+                         const cy = (y1 + y2) / 2 - (level * 40);
+                         line.setAttribute('d', `M ${x1} ${y1} Q ${cx} ${cy} ${x2} ${y2}`);
+                    } else {
+                        const { x1, y1, x2, y2 } = getEdgePoints(fromPos, toPos, fromType, param || level);
+                        line.setAttribute('x1', x1);
+                        line.setAttribute('y1', y1);
+                        line.setAttribute('x2', x2);
+                        line.setAttribute('y2', y2);
+                    }
+                }
+            });
+
+            // Update incoming
+            const linesTo = document.querySelectorAll(`[data-to="${nodeId}"]`);
+            linesTo.forEach(line => {
+                const fromId = line.getAttribute('data-from');
+                const fromPos = state.nodePositions[fromId];
+                if(fromPos) {
+                     const fromType = state.currentDS;
+                     const isCurve = line.getAttribute('data-type') === 'curve';
+                     const level = parseInt(line.getAttribute('data-level') || '0');
+                     const param = line.getAttribute('data-param');
+
+                     const toPos = state.nodePositions[nodeId];
+
+                     if (isCurve) {
+                         const { x1, y1, x2, y2 } = getEdgePoints(fromPos, toPos, fromType, param || level);
+                         const cx = (x1 + x2) / 2;
+                         const cy = (y1 + y2) / 2 - (level * 40);
+                         line.setAttribute('d', `M ${x1} ${y1} Q ${cx} ${cy} ${x2} ${y2}`);
+                     } else {
+                        const { x1, y1, x2, y2 } = getEdgePoints(fromPos, toPos, fromType, param || level);
+                        line.setAttribute('x1', x1);
+                        line.setAttribute('y1', y1);
+                        line.setAttribute('x2', x2);
+                        line.setAttribute('y2', y2);
+                     }
+                }
+            });
+        }
+
+        // --- RENDER ENGINE ---
+
+        function render(data) {
+            if(!data) return;
+            canvas.innerHTML = '';
+            svgLayer.innerHTML = `
+                <defs>
+                    <marker id="arrowhead" markerWidth="14" markerHeight="14" refX="13" refY="7" orient="auto">
+                        <polygon points="0 0, 14 7, 0 14" fill="#94a3b8" />
+                    </marker>
+                    <marker id="arrowhead-start" markerWidth="14" markerHeight="14" refX="13" refY="7" orient="auto-start-reverse">
+                        <polygon points="0 0, 14 7, 0 14" fill="#94a3b8" />
+                    </marker>
+                    <marker id="arrowhead-prev" markerWidth="14" markerHeight="14" refX="13" refY="7" orient="auto">
+                        <polygon points="0 0, 14 7, 0 14" fill="#f59e0b" />
+                    </marker>
+                     <marker id="arrowhead-skip" markerWidth="14" markerHeight="14" refX="13" refY="7" orient="auto">
+                        <polygon points="0 0, 14 7, 0 14" fill="#64748b" />
+                    </marker>
+                </defs>
+            `;
+            
+            if (state.currentDS === 'stack') renderStack(data);
+            else if (state.currentDS === 'queue') renderQueue(data);
+            else if (state.currentDS === 'linkedlist') renderLinkedList(data);
+            else if (state.currentDS === 'doublylinkedlist') renderDoublyLinkedList(data);
+            else if (state.currentDS === 'multilinkedlist') renderMultiLinkedList(data);
+            else if (state.currentDS === 'bst') renderBST(data);
+        }
+
+        function createNodeEl(node, x, y, type) {
+            if (state.nodePositions[node.id]) {
+                x = state.nodePositions[node.id].x;
+                y = state.nodePositions[node.id].y;
+            } else {
+                state.nodePositions[node.id] = { x, y };
+            }
+            // Update metadata for edge calculations
+            state.nodePositions[node.id].maxLvl = node.maxLvl || 1;
+
+            const el = document.createElement('div');
+            el.className = `draggable-node absolute node-enter flex border-2 border-indigo-600 bg-white text-indigo-700 font-bold shadow-lg z-10 transition-shadow duration-200 overflow-hidden`;
+            
+            if (type === 'bst') {
+                el.classList.add('node-circle', 'items-center', 'justify-center');
+                el.innerText = node.value;
+            } else if (type === 'multilinkedlist') {
+                el.classList.add('node-rect', 'flex-col');
+                el.style.minWidth = '60px';
+                let html = `<div class="flex-1 flex items-center justify-center p-2 border-b-2 border-indigo-100 min-h-[40px]">${node.value}</div>`;
+                const levels = node.maxLvl || 1;
+                for (let i = 0; i < levels; i++) {
+                    html += `<div class="h-8 border-b-2 last:border-b-0 border-indigo-100 bg-indigo-50 flex items-center justify-center text-xs text-indigo-300">●</div>`;
+                }
+                el.innerHTML = html;
+            } else {
+                el.classList.add('node-rect', 'items-stretch');
+                if (type === 'linkedlist') {
+                    el.style.minWidth = '80px';
+                    el.innerHTML = `
+                        <div class="flex-1 flex items-center justify-center p-2 min-w-[30px]">${node.value}</div>
+                        <div class="w-8 border-l-2 border-indigo-100 bg-indigo-50 flex items-center justify-center text-xs text-indigo-300">●</div>
+                    `;
+                } else if (type === 'doublylinkedlist') {
+                     el.style.minWidth = '100px';
+                     el.innerHTML = `
+                        <div class="w-8 border-r-2 border-indigo-100 bg-indigo-50 flex items-center justify-center text-xs text-amber-500">●</div>
+                        <div class="flex-1 flex items-center justify-center p-2 min-w-[30px]">${node.value}</div>
+                        <div class="w-8 border-l-2 border-indigo-100 bg-indigo-50 flex items-center justify-center text-xs text-indigo-300">●</div>
+                    `;
+                } else {
+                    el.style.minWidth = '60px';
+                    el.classList.add('items-center', 'justify-center', 'px-3', 'py-1');
+                    el.innerText = node.value;
+                }
+            }
+            el.style.left = `${x}px`;
+            el.style.top = `${y}px`;
+            el.style.transform = "translate(-50%, -50%)";
+            el.addEventListener('mousedown', (e) => handleNodeMouseDown(e, node.id));
+            return el;
+        }
+
+        // Logic to snap arrows
+        function getEdgePoints(p1, p2, type, param) {
+            let x1 = p1.x, y1 = p1.y, x2 = p2.x, y2 = p2.y;
+            
+            if (type === 'linkedlist') {
+                x1 = x1 + 25; x2 = x2 - 40; 
+                return { x1, y1, x2, y2 };
+            }
+            if (type === 'doublylinkedlist') {
+                if (param === 'next') {
+                    x1 = x1 + 35; x2 = x2 - 50; y1 -= 6; y2 -= 6;
+                } else if (param === 'prev') {
+                    x1 = x1 - 35; x2 = x2 + 50; y1 += 6; y2 += 6;
+                }
+                return { x1, y1, x2, y2 };
+            }
+            if (type === 'multilinkedlist') {
+                const level = parseInt(param);
+                const h1 = 40 + (p1.maxLvl * 32);
+                const top1 = p1.y - h1/2;
+                const yOffset1 = 40 + (level * 32) + 16;
+                const h2 = 40 + (p2.maxLvl * 32);
+                const top2 = p2.y - h2/2;
+                const yOffset2 = 40 + (level * 32) + 16;
+                x1 = x1 + 30; x2 = x2 - 30;
+                y1 = top1 + yOffset1; y2 = top2 + yOffset2;
+                return { x1, y1, x2, y2 };
+            }
+            if (type === 'bst') {
+                const r = 26; 
+                const dx = x2 - x1; const dy = y2 - y1;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+                if (dist < r * 2) return { x1, y1, x2, y2 }; 
+                const ratio = r / dist;
+                return { x1: x1 + dx * ratio, y1: y1 + dy * ratio, x2: x2 - dx * ratio, y2: y2 - dy * ratio };
+            }
+            if (type === 'stack') {
+                 if (y2 > y1) { y1+=20; y2-=20; } else { y1-=20; y2+=20; }
+                 return { x1, y1, x2, y2 };
+            }
+            if (type === 'queue') {
+                 x1+=30; x2-=30;
+                 return { x1, y1, x2, y2 };
+            }
+            return { x1, y1, x2, y2 };
+        }
+
+        function createArrow(fromId, toId, param=null, level=0) {
+            const pos1 = state.nodePositions[fromId];
+            const pos2 = state.nodePositions[toId];
+            if(!pos1 || !pos2) return;
+            const { x1, y1, x2, y2 } = getEdgePoints(pos1, pos2, state.currentDS, param !== null ? param : level);
+
+            const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+            line.setAttribute('x1', x1);
+            line.setAttribute('y1', y1);
+            line.setAttribute('x2', x2);
+            line.setAttribute('y2', y2);
+            line.setAttribute('stroke', '#94a3b8');
+            line.setAttribute('stroke-width', '2');
+            
+            let marker = 'url(#arrowhead)';
+            if (param === 'prev') {
+                marker = 'url(#arrowhead-prev)';
+                line.setAttribute('stroke', '#f59e0b');
+            }
+            line.setAttribute('marker-end', marker);
+            
+            line.setAttribute('data-from', fromId);
+            line.setAttribute('data-to', toId);
+            line.setAttribute('data-type', 'straight');
+            line.setAttribute('data-level', level);
+            if(param !== null) line.setAttribute('data-param', param);
+
+            line.classList.add('arrow-path');
+            svgLayer.appendChild(line);
+        }
+        
+        function createCurvedArrow(fromId, toId, level) {
+            const pos1 = state.nodePositions[fromId];
+            const pos2 = state.nodePositions[toId];
+            if(!pos1 || !pos2) return;
+
+            const { x1, y1, x2, y2 } = getEdgePoints(pos1, pos2, state.currentDS, level);
+            const cx = (x1 + x2) / 2;
+            const cy = (y1 + y2) / 2 - (level * 40);
+
+            const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+            path.setAttribute('d', `M ${x1} ${y1} Q ${cx} ${cy} ${x2} ${y2}`);
+            path.setAttribute('stroke', '#64748b'); 
+            path.setAttribute('stroke-width', '1.5');
+            path.setAttribute('marker-end', 'url(#arrowhead-skip)');
+            path.setAttribute('fill', 'none');
+            
+            path.setAttribute('data-from', fromId);
+            path.setAttribute('data-to', toId);
+            path.setAttribute('data-type', 'curve');
+            path.setAttribute('data-level', level);
+            path.setAttribute('data-param', level);
+
+            path.classList.add('arrow-path');
+            svgLayer.appendChild(path);
+        }
+
+        // 1. STACK RENDER
+        function renderStack(items) {
+            const centerX = canvas.clientWidth / 2;
+            const startY = canvas.clientHeight - 80;
+            const gap = 60; 
+            items.forEach((node, index) => {
+                const x = centerX;
+                const y = startY - (index * gap);
+                const el = createNodeEl(node, x, y, 'stack');
+                canvas.appendChild(el);
+            });
+            items.forEach((node, index) => {
+                if(index > 0) createArrow(items[index].id, items[index-1].id); 
+            });
+        }
+
+        // 2. QUEUE RENDER
+        function renderQueue(items) {
+            const startX = 80;
+            const centerY = canvas.clientHeight / 2;
+            const gap = 100;
+            items.forEach((node, index) => {
+                const x = startX + (index * gap);
+                const y = centerY;
+                const el = createNodeEl(node, x, y, 'queue');
+                canvas.appendChild(el);
+            });
+            items.forEach((node, index) => {
+                if (index < items.length - 1) createArrow(items[index].id, items[index+1].id);
+            });
+        }
+
+        // 3. LINKED LIST RENDER
+        function renderLinkedList(items) {
+            const startX = 80;
+            const centerY = canvas.clientHeight / 2;
+            const gap = 130; 
+            items.forEach((node, index) => {
+                const x = startX + (index * gap);
+                const y = centerY;
+                const el = createNodeEl(node, x, y, 'linkedlist');
+                canvas.appendChild(el);
+            });
+            items.forEach((node, index) => {
+                if(index < items.length - 1) createArrow(node.id, items[index+1].id);
+            });
+        }
+
+        // 4. DOUBLY LINKED LIST RENDER
+        function renderDoublyLinkedList(items) {
+            const startX = 80;
+            const centerY = canvas.clientHeight / 2;
+            const gap = 160; 
+            items.forEach((node, index) => {
+                const x = startX + (index * gap);
+                const y = centerY;
+                const el = createNodeEl(node, x, y, 'doublylinkedlist');
+                canvas.appendChild(el);
+            });
+            items.forEach((node, index) => {
+                if(index < items.length - 1) {
+                    const current = node.id;
+                    const next = items[index+1].id;
+                    createArrow(current, next, 'next');
+                    createArrow(next, current, 'prev');
+                }
+            });
+        }
+        
+        // 5. MULTI LINKED LIST RENDER
+        function renderMultiLinkedList(items) {
+             const startX = 60;
+             const centerY = canvas.clientHeight / 2;
+             const gap = 110;
+             items.forEach((node, index) => {
+                 const x = startX + (index * gap);
+                 const y = centerY;
+                 const el = createNodeEl(node, x, y, 'multilinkedlist');
+                 canvas.appendChild(el);
+             });
+             items.forEach((node) => {
+                 if (node.forward && Array.isArray(node.forward)) {
+                     node.forward.forEach((nextId, levelIndex) => {
+                         if (nextId) {
+                             if (levelIndex === 0) {
+                                 createArrow(node.id, nextId, levelIndex, levelIndex);
+                             } else {
+                                 createCurvedArrow(node.id, nextId, levelIndex);
+                             }
+                         }
+                     });
+                 }
+             });
+        }
+
+        // 6. BST RENDER
+        function renderBST(root) {
+            if(!root) return;
+            const canvasWidth = canvas.clientWidth;
+            const traverse = (node, level, x, range) => {
+                if(!node) return;
+                const y = level * 80 + 60;
+                const el = createNodeEl(node, x, y, 'bst');
+                canvas.appendChild(el);
+                const offset = range / 2;
+                if(node.left) {
+                    traverse(node.left, level + 1, x - offset, offset);
+                    createArrow(node.id, node.left.id);
+                }
+                if(node.right) {
+                    traverse(node.right, level + 1, x + offset, offset);
+                    createArrow(node.id, node.right.id);
+                }
+            };
+            traverse(root, 0, canvasWidth / 2, canvasWidth / 2);
+        }
+
+        window.addEventListener('resize', () => { fetchData(); });
+
+    </script>
+</body>
+</html>
