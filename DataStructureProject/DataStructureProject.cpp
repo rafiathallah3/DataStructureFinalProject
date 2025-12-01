@@ -8,7 +8,6 @@
 #include <sstream>
 #include <iomanip>
 
-// --- Helper for ID Generation ---
 std::string generateID() {
     static std::random_device rd;
     static std::mt19937 gen(rd());
@@ -20,7 +19,6 @@ std::string generateID() {
     return ss.str();
 }
 
-// --- Generic Node Struct ---
 struct Node {
     std::string id;
     int value;
@@ -28,13 +26,11 @@ struct Node {
     Node* prev = nullptr;
     Node* left = nullptr;
     Node* right = nullptr;
-    std::vector<Node*> forward; // For Skip List
-    int maxLvl = 0;             // For Skip List
+    std::vector<Node*> forward;
+    int maxLvl = 0;
 
     Node(int val) : value(val), id(generateID()) {}
 };
-
-// --- Data Structures ---
 
 struct Stack {
     std::vector<Node*> items;
@@ -43,7 +39,6 @@ struct Stack {
         items.push_back(new Node(val));
     }
 
-    // Standard Pop (Remove Top)
     void remove() {
         if (!items.empty()) {
             delete items.back();
@@ -51,13 +46,12 @@ struct Stack {
         }
     }
 
-    // New: Remove specific value
     void removeValue(int val) {
         for (auto it = items.begin(); it != items.end(); ++it) {
             if ((*it)->value == val) {
                 delete* it;
                 items.erase(it);
-                return; // Remove first occurrence
+                return;
             }
         }
     }
@@ -87,7 +81,6 @@ struct Queue {
         items.push_back(new Node(val));
     }
 
-    // Standard Dequeue (Remove Front)
     void remove() {
         if (!items.empty()) {
             delete items.front();
@@ -95,7 +88,6 @@ struct Queue {
         }
     }
 
-    // New: Remove specific value
     void removeValue(int val) {
         for (auto it = items.begin(); it != items.end(); ++it) {
             if ((*it)->value == val) {
@@ -140,7 +132,6 @@ struct LinkedList {
         }
     }
 
-    // Standard: Remove Tail
     void remove() {
         if (!head) return;
         if (!head->next) {
@@ -154,7 +145,6 @@ struct LinkedList {
         current->next = nullptr;
     }
 
-    // New: Remove specific value
     void removeValue(int val) {
         if (!head) return;
         if (head->value == val) {
@@ -216,7 +206,6 @@ struct DoublyLinkedList {
         }
     }
 
-    // Standard: Remove Tail
     void remove() {
         if (!tail) return;
         if (head == tail) {
@@ -232,16 +221,15 @@ struct DoublyLinkedList {
         }
     }
 
-    // New: Remove specific value
     void removeValue(int val) {
         Node* current = head;
         while (current) {
             if (current->value == val) {
                 if (current->prev) current->prev->next = current->next;
-                else head = current->next; // Removing head
+                else head = current->next;
 
                 if (current->next) current->next->prev = current->prev;
-                else tail = current->prev; // Removing tail
+                else tail = current->prev;
 
                 delete current;
                 return;
@@ -280,7 +268,7 @@ struct MultiLinkedList {
     Node* head;
 
     MultiLinkedList() {
-        head = new Node(-2147483648); // Sentinel min value
+        head = new Node(-2147483648);
         head->forward.resize(maxLevel, nullptr);
     }
 
@@ -295,7 +283,6 @@ struct MultiLinkedList {
             update[i] = current;
         }
 
-        // Random level
         int lvl = 1;
         while ((rand() % 2) == 0 && lvl < maxLevel) lvl++;
 
@@ -337,7 +324,7 @@ struct MultiLinkedList {
             current = current->forward[0];
             delete temp;
         }
-        // Reset head
+
         std::fill(head->forward.begin(), head->forward.end(), nullptr);
     }
 
@@ -345,7 +332,6 @@ struct MultiLinkedList {
         crow::json::wvalue x;
         x = crow::json::wvalue::list();
 
-        // Return linear list for rendering nodes
         Node* current = head->forward[0];
         int i = 0;
         while (current) {
@@ -354,7 +340,6 @@ struct MultiLinkedList {
             nodeJson["value"] = current->value;
             nodeJson["maxLvl"] = current->maxLvl;
 
-            // Serialize forward pointers as IDs
             crow::json::wvalue forwardIds;
             forwardIds = crow::json::wvalue::list();
             for (size_t k = 0; k < current->forward.size(); k++) {
@@ -431,7 +416,6 @@ struct BST {
         root = nullptr;
     }
 
-    // Recursive serializer
     crow::json::wvalue nodeToJson(Node* node) {
         if (!node) return nullptr;
         crow::json::wvalue j;
@@ -448,7 +432,6 @@ struct BST {
     }
 };
 
-// Global State
 Stack stackDS;
 Queue queueDS;
 LinkedList linkedListDS;
@@ -459,7 +442,6 @@ BST bstDS;
 int main() {
     crow::SimpleApp app;
 
-    // Middleware to add CORS headers
     auto cors = [](crow::response& res) {
         res.add_header("Access-Control-Allow-Origin", "*");
         res.add_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
@@ -483,8 +465,7 @@ int main() {
     });
 
     
-    CROW_ROUTE(app, "/api/<string>/add").methods("POST"_method)
-        ([&](const crow::request& req, crow::response& res, std::string type) {
+    CROW_ROUTE(app, "/api/<string>/add").methods("POST"_method)([&](const crow::request& req, crow::response& res, std::string type) {
         auto x = crow::json::load(req.body);
         if (!x) { res.code = 400; cors(res); res.end(); return; }
 
@@ -499,7 +480,7 @@ int main() {
 
         cors(res);
         res.end("ok");
-            });
+    });
 
     CROW_ROUTE(app, "/api/<string>/remove").methods("POST"_method)([&](const crow::request& req, crow::response& res, std::string type) {
         auto x = crow::json::load(req.body);
@@ -518,7 +499,6 @@ int main() {
             else if (type == "queue") queueDS.remove();
             else if (type == "linkedlist") linkedListDS.remove();
             else if (type == "doublylinkedlist") doublyLinkedListDS.remove();
-            // Multi/BST generally only support remove-by-value, so ignore empty remove
         }
 
         cors(res);
@@ -537,8 +517,7 @@ int main() {
         res.end("ok");
     });
 
-    CROW_ROUTE(app, "/api/<string>/data").methods("GET"_method)
-        ([&](const crow::request& req, crow::response& res, std::string type) {
+    CROW_ROUTE(app, "/api/<string>/data").methods("GET"_method) ([&](const crow::request& req, crow::response& res, std::string type) {
         crow::json::wvalue json;
 
         if (type == "stack") json = stackDS.toJson();
