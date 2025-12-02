@@ -1,14 +1,12 @@
 #include "crow.h"
-#include <vector>
 #include <string>
-#include <deque>
 #include <iostream>
 #include <random>
 #include <algorithm>
 #include <sstream>
 #include <iomanip>
 
-std::string generateID() {
+std::string buatID() {
     static std::random_device rd;
     static std::mt19937 gen(rd());
     static std::uniform_int_distribution<> dis(0, 15);
@@ -29,45 +27,65 @@ struct Node {
     std::vector<Node*> forward;
     int maxLvl = 0;
 
-    Node(int val) : value(val), id(generateID()) {}
+    Node(int val) : value(val), id(buatID()) {}
 };
 
 struct Stack {
-    std::vector<Node*> items;
+    Node* atas = nullptr;
 
-    void add(int val) {
-        items.push_back(new Node(val));
+    void tambah(int val) {
+        Node* nodeBaru = new Node(val);
+        nodeBaru->next = atas;
+        atas = nodeBaru;
     }
 
-    void remove() {
-        if (!items.empty()) {
-            delete items.back();
-            items.pop_back();
+    void hapus() {
+        if (!atas) return;
+        Node* sementara = atas;
+        atas = atas->next;
+        delete sementara;
+    }
+
+    void hapusValue(int val) {
+        if (!atas) return;
+
+        if (atas->value == val) {
+            hapus();
+            return;
         }
-    }
 
-    void removeValue(int val) {
-        for (auto it = items.begin(); it != items.end(); ++it) {
-            if ((*it)->value == val) {
-                delete* it;
-                items.erase(it);
+        Node* nodeSekarang = atas;
+        while (nodeSekarang->next) {
+            if (nodeSekarang->next->value == val) {
+                Node* sementara = nodeSekarang->next;
+                nodeSekarang->next = nodeSekarang->next->next;
+                delete sementara;
                 return;
             }
+            nodeSekarang = nodeSekarang->next;
         }
     }
 
     void clear() {
-        for (auto n : items) delete n;
-        items.clear();
+        while (atas) hapus();
     }
 
     crow::json::wvalue toJson() {
+        std::vector<Node*> tempNodes;
+        Node* current = atas;
+        while (current) {
+            tempNodes.push_back(current);
+            current = current->next;
+        }
+
+        std::reverse(tempNodes.begin(), tempNodes.end());
+
         crow::json::wvalue x;
         x = crow::json::wvalue::list();
-        for (size_t i = 0; i < items.size(); ++i) {
+        for (size_t i = 0; i < tempNodes.size(); ++i) {
             crow::json::wvalue nodeJson;
-            nodeJson["id"] = items[i]->id;
-            nodeJson["value"] = items[i]->value;
+            nodeJson["id"] = tempNodes[i]->id;
+            nodeJson["value"] = tempNodes[i]->value;
             x[i] = std::move(nodeJson);
         }
         return x;
@@ -75,100 +93,134 @@ struct Stack {
 };
 
 struct Queue {
-    std::deque<Node*> items;
+    Node* palak = nullptr;
+    Node* ekor = nullptr;
 
-    void add(int val) {
-        items.push_back(new Node(val));
-    }
-
-    void remove() {
-        if (!items.empty()) {
-            delete items.front();
-            items.pop_front();
+    void tambah(int val) {
+        Node* nodeBaru = new Node(val);
+        if (!ekor) {
+            palak = ekor = nodeBaru;
+        }
+        else {
+            ekor->next = nodeBaru;
+            ekor = nodeBaru;
         }
     }
 
-    void removeValue(int val) {
-        for (auto it = items.begin(); it != items.end(); ++it) {
-            if ((*it)->value == val) {
-                delete* it;
-                items.erase(it);
+    void hapus() {
+        if (!palak) return;
+
+        Node* sementara = palak;
+        palak = palak->next;
+
+        if (!palak) {
+            ekor = nullptr;
+        }
+
+        delete sementara;
+    }
+
+    void hapusValue(int val) {
+        if (!palak) return;
+
+        if (palak->value == val) {
+            hapus();
+            return;
+        }
+
+        Node* nodeSekarang = palak;
+        while (nodeSekarang->next) {
+            if (nodeSekarang->next->value == val) {
+                Node* sementara = nodeSekarang->next;
+                nodeSekarang->next = sementara->next;
+
+                if (sementara == ekor) {
+                    ekor = nodeSekarang;
+                }
+
+                delete sementara;
                 return;
             }
+            nodeSekarang = nodeSekarang->next;
         }
     }
 
     void clear() {
-        for (auto n : items) delete n;
-        items.clear();
+        while (palak) hapus();
     }
 
     crow::json::wvalue toJson() {
         crow::json::wvalue x;
         x = crow::json::wvalue::list();
+
+        Node* current = palak;
         int i = 0;
-        for (auto n : items) {
+        while (current) {
             crow::json::wvalue nodeJson;
-            nodeJson["id"] = n->id;
-            nodeJson["value"] = n->value;
+            nodeJson["id"] = current->id;
+            nodeJson["value"] = current->value;
             x[i++] = std::move(nodeJson);
+            current = current->next;
         }
         return x;
     }
 };
 
 struct LinkedList {
-    Node* head = nullptr;
+    Node* palak = nullptr;
 
     void add(int val) {
-        Node* newNode = new Node(val);
-        if (!head) {
-            head = newNode;
-        }
-        else {
-            Node* current = head;
-            while (current->next) current = current->next;
-            current->next = newNode;
+        Node* nodeBaru = new Node(val);
+        if (!palak) {
+            palak = nodeBaru;
+        } else {
+            Node* nodeSekarang = palak;
+            while (nodeSekarang->next) nodeSekarang = nodeSekarang->next;
+            nodeSekarang->next = nodeBaru;
         }
     }
 
-    void remove() {
-        if (!head) return;
-        if (!head->next) {
-            delete head;
-            head = nullptr;
+    void hapus() {
+        if (!palak) return;
+        if (!palak->next) {
+            delete palak;
+            palak = nullptr;
             return;
         }
-        Node* current = head;
-        while (current->next->next) current = current->next;
-        delete current->next;
-        current->next = nullptr;
+        Node* nodeSekarang = palak;
+        while (nodeSekarang->next->next) nodeSekarang = nodeSekarang->next;
+        delete nodeSekarang->next;
+        nodeSekarang->next = nullptr;
     }
 
-    void removeValue(int val) {
-        if (!head) return;
-        if (head->value == val) {
-            Node* temp = head;
-            head = head->next;
-            delete temp;
+    void hapusValue(int val) {
+        if (!palak) return;
+        
+        if (palak->value == val) {
+            Node* sementara = palak;
+            palak = palak->next;
+            delete sementara;
             return;
         }
-        Node* current = head;
-        while (current->next) {
-            if (current->next->value == val) {
-                Node* temp = current->next;
-                current->next = current->next->next;
-                delete temp;
+
+        Node* nodeSekarang = palak;
+        while (nodeSekarang->next) {
+            if (nodeSekarang->next->value == val) {
+                Node* sementara = nodeSekarang->next;
+                nodeSekarang->next = nodeSekarang->next->next;
+                delete sementara;
+                
                 return;
             }
-            current = current->next;
+
+            nodeSekarang = nodeSekarang->next;
         }
     }
 
     void clear() {
-        while (head) {
-            Node* temp = head;
-            head = head->next;
+        while (palak) {
+            Node* temp = palak;
+            palak = palak->next;
             delete temp;
         }
     }
@@ -176,7 +228,7 @@ struct LinkedList {
     crow::json::wvalue toJson() {
         crow::json::wvalue x;
         x = crow::json::wvalue::list();
-        Node* current = head;
+        Node* current = palak;
         int i = 0;
         while (current) {
             crow::json::wvalue nodeJson;
@@ -190,67 +242,68 @@ struct LinkedList {
 };
 
 struct DoublyLinkedList {
-    Node* head = nullptr;
-    Node* tail = nullptr;
+    Node* palak = nullptr;
+    Node* ekor = nullptr;
 
     void add(int val) {
-        Node* newNode = new Node(val);
-        if (!head) {
-            head = newNode;
-            tail = newNode;
+        Node* nodeBaru = new Node(val);
+        if (!palak) {
+            palak = nodeBaru;
+            ekor = nodeBaru;
         }
         else {
-            tail->next = newNode;
-            newNode->prev = tail;
-            tail = newNode;
+            ekor->next = nodeBaru;
+            nodeBaru->prev = ekor;
+            ekor = nodeBaru;
         }
     }
 
-    void remove() {
-        if (!tail) return;
-        if (head == tail) {
-            delete head;
-            head = nullptr;
-            tail = nullptr;
-        }
-        else {
-            Node* temp = tail;
-            tail = tail->prev;
-            tail->next = nullptr;
-            delete temp;
+    void hapus() {
+        if (!ekor) return;
+        if (palak == ekor) {
+            delete palak;
+            palak = nullptr;
+            ekor = nullptr;
+        } else {
+            Node* sementara = ekor;
+            ekor = ekor->prev;
+            ekor->next = nullptr;
+            delete sementara;
         }
     }
 
-    void removeValue(int val) {
-        Node* current = head;
-        while (current) {
-            if (current->value == val) {
-                if (current->prev) current->prev->next = current->next;
-                else head = current->next;
+    void hapusValue(int val) {
+        Node* nodeSekarang = palak;
+        while (nodeSekarang) {
+            if (nodeSekarang->value == val) {
+                if (nodeSekarang->prev) nodeSekarang->prev->next = nodeSekarang->next;
+                else palak = nodeSekarang->next;
 
-                if (current->next) current->next->prev = current->prev;
-                else tail = current->prev;
+                if (nodeSekarang->next) nodeSekarang->next->prev = nodeSekarang->prev;
+                else ekor = nodeSekarang->prev;
 
-                delete current;
+                delete nodeSekarang;
                 return;
             }
-            current = current->next;
+
+            nodeSekarang = nodeSekarang->next;
         }
     }
 
     void clear() {
-        while (head) {
-            Node* temp = head;
-            head = head->next;
+        while (palak) {
+            Node* temp = palak;
+            palak = palak->next;
             delete temp;
         }
-        tail = nullptr;
+
+        ekor = nullptr;
     }
 
     crow::json::wvalue toJson() {
         crow::json::wvalue x;
         x = crow::json::wvalue::list();
-        Node* current = head;
+        Node* current = palak;
         int i = 0;
         while (current) {
             crow::json::wvalue nodeJson;
@@ -259,80 +312,83 @@ struct DoublyLinkedList {
             x[i++] = std::move(nodeJson);
             current = current->next;
         }
+
         return x;
     }
 };
 
 struct MultiLinkedList {
-    int maxLevel = 3;
-    Node* head;
+    int maximumJumlahNode = 3;
+    Node* palak;
 
     MultiLinkedList() {
-        head = new Node(-2147483648);
-        head->forward.resize(maxLevel, nullptr);
+        palak = new Node(-2147483648);
+        palak->forward.resize(maximumJumlahNode, nullptr);
     }
 
-    void add(int val) {
-        std::vector<Node*> update(maxLevel, nullptr);
-        Node* current = head;
+    void tambah(int val) {
+        std::vector<Node*> update(maximumJumlahNode, nullptr);
+        Node* nodeSekarang = palak;
 
-        for (int i = maxLevel - 1; i >= 0; i--) {
-            while (current->forward[i] && current->forward[i]->value < val) {
-                current = current->forward[i];
+        for (int i = maximumJumlahNode - 1; i >= 0; i--) {
+            while (nodeSekarang->forward[i] && nodeSekarang->forward[i]->value < val) {
+                nodeSekarang = nodeSekarang->forward[i];
             }
-            update[i] = current;
+            update[i] = nodeSekarang;
         }
 
         int lvl = 1;
-        while ((rand() % 2) == 0 && lvl < maxLevel) lvl++;
+        while ((rand() % 2) == 0 && lvl < maximumJumlahNode) lvl++;
 
-        Node* newNode = new Node(val);
-        newNode->forward.resize(lvl, nullptr);
-        newNode->maxLvl = lvl;
+        Node* nodeBaru = new Node(val);
+        nodeBaru->forward.resize(lvl, nullptr);
+        nodeBaru->maxLvl = lvl;
 
         for (int i = 0; i < lvl; i++) {
-            newNode->forward[i] = update[i]->forward[i];
-            update[i]->forward[i] = newNode;
+            nodeBaru->forward[i] = update[i]->forward[i];
+            update[i]->forward[i] = nodeBaru;
         }
     }
 
-    void remove(int val) {
-        std::vector<Node*> update(maxLevel, nullptr);
-        Node* current = head;
+    void hapus(int val) {
+        std::vector<Node*> update(maximumJumlahNode, nullptr);
+        Node* nodeSekarang = palak;
 
-        for (int i = maxLevel - 1; i >= 0; i--) {
-            while (current->forward[i] && current->forward[i]->value < val) {
-                current = current->forward[i];
+        for (int i = maximumJumlahNode - 1; i >= 0; i--) {
+            while (nodeSekarang->forward[i] && nodeSekarang->forward[i]->value < val) {
+                nodeSekarang = nodeSekarang->forward[i];
             }
-            update[i] = current;
+
+            update[i] = nodeSekarang;
         }
 
-        Node* target = current->forward[0];
+        Node* target = nodeSekarang->forward[0];
         if (target && target->value == val) {
-            for (int i = 0; i < maxLevel; i++) {
+            for (int i = 0; i < maximumJumlahNode; i++) {
                 if (i >= update.size() || update[i]->forward[i] != target) break;
                 update[i]->forward[i] = target->forward[i];
             }
+
             delete target;
         }
     }
 
     void clear() {
-        Node* current = head->forward[0];
+        Node* current = palak->forward[0];
         while (current) {
             Node* temp = current;
             current = current->forward[0];
             delete temp;
         }
 
-        std::fill(head->forward.begin(), head->forward.end(), nullptr);
+        std::fill(palak->forward.begin(), palak->forward.end(), nullptr);
     }
 
     crow::json::wvalue toJson() {
         crow::json::wvalue x;
         x = crow::json::wvalue::list();
 
-        Node* current = head->forward[0];
+        Node* current = palak->forward[0];
         int i = 0;
         while (current) {
             crow::json::wvalue nodeJson;
@@ -360,48 +416,49 @@ struct MultiLinkedList {
 };
 
 struct BST {
-    Node* root = nullptr;
+    Node* akar = nullptr;
 
-    Node* insert(Node* node, int val) {
+    Node* masukin(Node* node, int val) {
         if (!node) return new Node(val);
-        if (val < node->value) node->left = insert(node->left, val);
-        else if (val > node->value) node->right = insert(node->right, val);
+        if (val < node->value) node->left = masukin(node->left, val);
+        else if (val > node->value) node->right = masukin(node->right, val);
         return node;
     }
 
-    void add(int val) {
-        root = insert(root, val);
+    void tambah(int val) {
+        akar = masukin(akar, val);
     }
 
-    Node* findMin(Node* node) {
+    Node* cariTerkecil(Node* node) {
         while (node->left) node = node->left;
         return node;
     }
 
-    Node* removeNode(Node* node, int val) {
+    Node* hapusNode(Node* node, int val) {
         if (!node) return nullptr;
-        if (val < node->value) node->left = removeNode(node->left, val);
-        else if (val > node->value) node->right = removeNode(node->right, val);
+        if (val < node->value) node->left = hapusNode(node->left, val);
+        else if (val > node->value) node->right = hapusNode(node->right, val);
         else {
             if (!node->left) {
-                Node* temp = node->right;
+                Node* sementara = node->right;
                 delete node;
-                return temp;
+                return sementara;
             }
             else if (!node->right) {
-                Node* temp = node->left;
+                Node* sementara = node->left;
                 delete node;
-                return temp;
+                return sementara;
             }
-            Node* temp = findMin(node->right);
-            node->value = temp->value;
-            node->right = removeNode(node->right, temp->value);
+            Node* sementara = cariTerkecil(node->right);
+            node->value = sementara->value;
+            node->right = hapusNode(node->right, sementara->value);
         }
+
         return node;
     }
 
-    void remove(int val) {
-        root = removeNode(root, val);
+    void hapus(int val) {
+        akar = hapusNode(akar, val);
     }
 
     void clearNode(Node* node) {
@@ -412,8 +469,8 @@ struct BST {
     }
 
     void clear() {
-        clearNode(root);
-        root = nullptr;
+        clearNode(akar);
+        akar = nullptr;
     }
 
     crow::json::wvalue nodeToJson(Node* node) {
@@ -427,8 +484,8 @@ struct BST {
     }
 
     crow::json::wvalue toJson() {
-        if (!root) return nullptr;
-        return nodeToJson(root);
+        if (!akar) return nullptr;
+        return nodeToJson(akar);
     }
 };
 
@@ -446,7 +503,7 @@ int main() {
         res.add_header("Access-Control-Allow-Origin", "*");
         res.add_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
         res.add_header("Access-Control-Allow-Headers", "Content-Type");
-        };
+    };
 
     CROW_ROUTE(app, "/").methods("GET"_method)([&](const crow::request&, crow::response& res) {
         cors(res);
@@ -471,12 +528,12 @@ int main() {
 
         int val = x["value"].i();
 
-        if (type == "stack") stackDS.add(val);
-        else if (type == "queue") queueDS.add(val);
+        if (type == "stack") stackDS.tambah(val);
+        else if (type == "queue") queueDS.tambah(val);
         else if (type == "linkedlist") linkedListDS.add(val);
         else if (type == "doublylinkedlist") doublyLinkedListDS.add(val);
-        else if (type == "multilinkedlist") multiLinkedListDS.add(val);
-        else if (type == "bst") bstDS.add(val);
+        else if (type == "multilinkedlist") multiLinkedListDS.tambah(val);
+        else if (type == "bst") bstDS.tambah(val);
 
         cors(res);
         res.end("ok");
@@ -488,17 +545,17 @@ int main() {
 
         if (hasValue) {
             int val = x["value"].i();
-            if (type == "stack") stackDS.removeValue(val);
-            else if (type == "queue") queueDS.removeValue(val);
-            else if (type == "linkedlist") linkedListDS.removeValue(val);
-            else if (type == "doublylinkedlist") doublyLinkedListDS.removeValue(val);
-            else if (type == "multilinkedlist") multiLinkedListDS.remove(val);
-            else if (type == "bst") bstDS.remove(val);
+            if (type == "stack") stackDS.hapusValue(val);
+            else if (type == "queue") queueDS.hapusValue(val);
+            else if (type == "linkedlist") linkedListDS.hapusValue(val);
+            else if (type == "doublylinkedlist") doublyLinkedListDS.hapusValue(val);
+            else if (type == "multilinkedlist") multiLinkedListDS.hapus(val);
+            else if (type == "bst") bstDS.hapus(val);
         } else {
-            if (type == "stack") stackDS.remove();
-            else if (type == "queue") queueDS.remove();
-            else if (type == "linkedlist") linkedListDS.remove();
-            else if (type == "doublylinkedlist") doublyLinkedListDS.remove();
+            if (type == "stack") stackDS.hapus();
+            else if (type == "queue") queueDS.hapus();
+            else if (type == "linkedlist") linkedListDS.hapus();
+            else if (type == "doublylinkedlist") doublyLinkedListDS.hapus();
         }
 
         cors(res);

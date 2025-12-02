@@ -1,5 +1,7 @@
 # Data Structure Final Project
 
+![Project Screenshot](tampilan.png)
+
 ## Overview
 This project is a visualization tool for various data structures. It provides an interactive and educational platform to understand the inner workings of fundamental data structures. It is is ideal for students, educators, and anyone interested in learning data structures in a visual and engaging way.
 
